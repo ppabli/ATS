@@ -27,7 +27,7 @@ class Thread(threading.Thread):
 			self.broker.trade()
 
 			i = 0
-			while not self.stopFlag and i <= 60:
+			while self.active and i <= 60:
 
 				i += 1
 				time.sleep(1)
