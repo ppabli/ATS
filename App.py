@@ -33,7 +33,7 @@ class App:
 
 		else:
 
-			print("Loading brokers")
+			print("Start loading brokers")
 
 			with open('brokers.json') as file:
 
@@ -67,7 +67,7 @@ class App:
 
 					self.threads.append(t)
 
-			print("Finish loading brokers")
+				print("Finish loading brokers")
 
 		self.options = {
 
@@ -195,9 +195,11 @@ class App:
 
 		columns, rows = os.get_terminal_size()
 
+		duration = round(duration * 1.00, 2)
+
 		bar = "[]"
 
-		ticks = columns - len(bar) - 1
+		ticks = columns - len(bar) - 2 #2 due to bar final space and -1 due to print whitespace
 
 		if startText:
 
@@ -211,21 +213,21 @@ class App:
 
 			if etaText:
 
-				ticks -= len(etaText) + 2
+				ticks -= len(etaText) + 2 + len(str(duration)) + 1
 
 			else:
 
-				ticks -= 12
+				ticks -= 5 + 2 + len(str(duration)) + 1
 
 		if percentage:
 
 			if percentageText:
 
-				ticks -= len(percentageText) + 2
+				ticks -= len(percentageText) + 1 + 6
 
 			else:
 
-				ticks -= 8
+				ticks -= 6
 
 		tickTime = duration / ticks
 
@@ -250,24 +252,24 @@ class App:
 
 				if etaText:
 
-					newText = f"{etaText} {round(duration - x * tickTime, 2)}s"
+					newText = f"{etaText} {round(duration - x * tickTime, 1)}s"
 					elements.append(newText)
 
 				else:
 
-					newText = f"Time: {round(duration - x * tickTime, 2)}s"
+					newText = f"Time: {round(duration - x * tickTime, 1)}s"
 					elements.append(newText)
 
 			if percentage:
 
 				if percentageText:
 
-					newText = f"{percentageText} {round(x / ticks * 100, 2)}%"
+					newText = f"{percentageText} {round(x / ticks * 100, 1)}%"
 					elements.append(newText)
 
 				else:
 
-					newText = f"{round(x / ticks * 100, 2)}%"
+					newText = f"{round(x / ticks * 100, 1)}%"
 					elements.append(newText)
 
 			print(' '.join(elements), end = "\r")
@@ -290,11 +292,11 @@ class App:
 
 	def displayBrokers(self):
 
-		print('Index\tB ID\tB Symbol\tB Money\tB Stock\tT ID\tT active\tTimestamp')
+		print(f"Index{' ' * (12 - len('Index'))}B ID{' ' * (12 - len('B ID'))}B Symbol{' ' * (12 - len('B Symbol'))}B Money{' ' * (12 - len('B Money'))}B Stock{' ' * (12 - len('B Stock'))}T ID{' ' * (12 - len('T ID'))}T Active{' ' * (12 - len('T Active'))}T Time{' ' * (12 - len('T Time'))}")
 
 		for index, (broker, thread) in enumerate(zip(list(self.brokers), list(self.threads))):
 
-			print(f"{index}\t{broker.id}\t{broker.symbol}\t{broker.money}\t{len(broker.stock)}\t{thread.id}\t{thread.active}\t{thread.timestamp}")
+			print(f"{index}\t{broker.id}\t{broker.symbol}\t{int(broker.money)}\t{len(broker.stock)}\t{thread.id}\t{thread.active}\t{int(thread.timestamp)}")
 
 	def addBroker(self):
 
@@ -314,15 +316,85 @@ class App:
 
 	def removeBroker(self):
 
-		pass
+		self.displayBrokers()
+
+		try:
+
+			index = int(input("Enter the broker index: "))
+
+			if self.brokers[index]:
+
+				broker = self.brokers[index]
+
+				if self.threads[index].active:
+
+					self.threads[index].stop()
+					self.threads[index].join()
+
+				broker.removeBroker();
+				del self.broker[index]
+
+				print("Broker correctly removed")
+
+			else:
+
+				print("Invalid index")
+
+		except ValueError:
+
+			print("Invalid data type provided")
 
 	def startThread(self):
 
-		pass
+		self.displayBrokers()
+
+		try:
+
+			index = int(input("Enter the broker index: "))
+
+			if self.threads[index]:
+
+				if not self.threads[index].active:
+
+					print("Broker thread correctly started")
+
+				else:
+
+					print("Broker thread already started")
+
+			else:
+
+				print("Invalid index")
+
+		except ValueError:
+
+			print("Invalid data type provided")
 
 	def stopThread(self):
 
-		pass
+		self.displayBrokers()
+
+		try:
+
+			index = int(input("Enter the broker index: "))
+
+			if self.threads[index]:
+
+				if self.threads[index].active:
+
+					print("Broker thread correctly stopped")
+
+				else:
+
+					print("Broker thread already stopped")
+
+			else:
+
+				print("Invalid index")
+
+		except ValueError:
+
+			print("Invalid data type provided")
 
 	def startTrack(self):
 
