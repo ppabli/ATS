@@ -16,14 +16,14 @@ class App:
 	def __init__(self):
 
 		self.brokers = []
-		self.threads = list()
+		self.threads = []
 
 		self.cooldownCalls = 0
 		self.cooldownTimestamp = time.time()
 
 		if not os.path.exists("brokers.json"):
 
-			with open('brokers.json', 'w') as file:
+			with open("brokers.json", "w") as file:
 
 				data = {}
 				data["lastUpdateTimestamp"] = ""
@@ -33,41 +33,43 @@ class App:
 
 		else:
 
-			print("Start loading brokers")
-
-			with open('brokers.json') as file:
+			with open("brokers.json") as file:
 
 				obj = json.load(file)
 
-				for broker in obj['brokers'].values():
+				if obj["brokers"]:
 
-					self.checkCooldown(3)
+					print("Start loading brokers")
 
-					print(f"Loading broker: {broker['data']['symbol']} | {broker['data']['id']}")
+					for broker in obj["brokers"].values():
 
-					stock = []
+						self.checkCooldown(2)
 
-					for x, index in enumerate(broker["wallet"]["stock"]):
+						print(f"Loading broker: {broker['data']['symbol']} | {broker['data']['id']}")
 
-						newStock = Stock(broker["wallet"]["stock"][index]["brokerID"], broker["wallet"]["stock"][index]["symbol"], broker["wallet"]["stock"][index]["buyPrice"], broker["wallet"]["stock"][index]["buyTimestamp"])
-						stock.append(newStock)
+						stockList = {}
 
-					log = []
+						for key, value in broker["wallet"]["stock"].items():
 
-					for x, index in enumerate(broker["log"]):
+							newStock = Stock(value["brokerID"], value["symbol"], value["buyPrice"], value["buyTimestamp"], id = value["id"])
+							stockList[newStock.id] = (newStock)
 
-						newStock = Stock(broker["wallet"]["stock"][index]["brokerID"], broker["wallet"]["stock"][index]["symbol"], broker["wallet"]["stock"][index]["buyPrice"], broker["wallet"]["stock"][index]["buyTimestamp"], broker["wallet"]["stock"][index]["sellPrice"] or False, broker["wallet"]["stock"][index]["sellTimestamp"] or False)
-						log.append(newStock)
+						logList = {}
 
-					b = Broker(broker["data"]["symbol"], broker["wallet"]["money"], stock, log, broker["data"]["id"])
+						for key, value in broker["log"].items():
 
-					self.brokers.append(b)
+							newStock = Stock(value["brokerID"], value["symbol"], value["buyPrice"], value["buyTimestamp"], value["sellPrice"], value["sellTimestamp"], value["id"])
+							logList[newStock.id] = newStock
 
-					t = Thread(self, b)
+						b = Broker(broker["data"]["symbol"], broker["wallet"]["money"], stockList, logList, broker["data"]["lastTradeTimestamp"], broker["data"]["id"])
 
-					self.threads.append(t)
+						self.brokers.append(b)
 
-				print("Finish loading brokers")
+						t = Thread(self, b)
+
+						self.threads.append(t)
+
+					print("Finish loading brokers")
 
 		self.options = {
 
@@ -87,7 +89,7 @@ class App:
 
 				"description": "Add broker",
 				"function": self.addBroker,
-				"cost": 3
+				"cost": 2
 
 			},
 			2: {
@@ -140,6 +142,7 @@ class App:
 				if option == -1:
 
 					self.stopTrack()
+					self.updateFile()
 					break;
 
 				else:
@@ -272,7 +275,7 @@ class App:
 					newText = f"{round(x / ticks * 100, 1)}%"
 					elements.append(newText)
 
-			print(' '.join(elements), end = "\r")
+			print(" ".join(elements), end = "\r")
 
 			time.sleep(tickTime)
 
@@ -288,15 +291,15 @@ class App:
 
 		for option in self.options:
 
-			print(f'{option} - {self.options[option]["description"]}')
+			print(f"{option if option == -1 else ' ' + str(option)} - {self.options[option]['description']}")
 
 	def displayBrokers(self):
 
-		print(f"Index{' ' * (12 - len('Index'))}B ID{' ' * (12 - len('B ID'))}B Symbol{' ' * (12 - len('B Symbol'))}B Money{' ' * (12 - len('B Money'))}B Stock{' ' * (12 - len('B Stock'))}T ID{' ' * (12 - len('T ID'))}T Active{' ' * (12 - len('T Active'))}T Time{' ' * (12 - len('T Time'))}")
+		print(f"Index\t\tB ID\t\tB Sym\t\tB Mon\t\tB St\t\tB LT\t\tT ID\t\tT Act\t\tT Tim")
 
 		for index, (broker, thread) in enumerate(zip(list(self.brokers), list(self.threads))):
 
-			print(f"{index}\t{broker.id}\t{broker.symbol}\t{int(broker.money)}\t{len(broker.stock)}\t{thread.id}\t{thread.active}\t{int(thread.timestamp)}")
+			print(f"{index}\t\t{broker.id}\t\t{broker.symbol}\t\t{round(broker.money, 2)}\t\t{len(broker.stock)}\t\t{int(broker.lastTradeTimestamp)}\t{thread.id}\t\t{thread.active}\t\t{int(thread.timestamp)}")
 
 	def addBroker(self):
 
@@ -309,6 +312,10 @@ class App:
 			newBroker.addBroker()
 
 			self.brokers.append(newBroker)
+
+			t = Thread(self, newBroker)
+
+			self.threads.append(t)
 
 		except ValueError:
 
@@ -332,9 +339,8 @@ class App:
 					self.threads[index].join()
 
 				broker.removeBroker();
-				del self.broker[index]
-
-				print("Broker correctly removed")
+				del self.brokers[index]
+				del self.threads[index]
 
 			else:
 
@@ -344,6 +350,35 @@ class App:
 
 			print("Invalid data type provided")
 
+	def updateFile(self):
+
+		with open("brokers.json") as file:
+
+			obj = json.load(file)
+
+			for broker in self.brokers:
+
+				stockList = {}
+
+				for key, value in broker.stock.items():
+
+					stockList[key] = value.__dict__
+
+				logList = {}
+
+				for key, value in broker.log.items():
+
+					logList[key] = value.__dict__
+
+				obj["brokers"][broker.id]["data"]["lastTradeTimestamp"] = broker.lastTradeTimestamp
+				obj["brokers"][broker.id]["wallet"]["money"] = broker.money
+				obj["brokers"][broker.id]["wallet"]["stock"] = stockList
+				obj["brokers"][broker.id]["log"] = logList
+
+			with open("brokers.json", "w", encoding = "utf8") as file:
+
+				json.dump(obj, file, indent = "\t")
+
 	def startThread(self):
 
 		self.displayBrokers()
@@ -352,19 +387,7 @@ class App:
 
 			index = int(input("Enter the broker index: "))
 
-			if self.threads[index]:
-
-				if not self.threads[index].active:
-
-					print("Broker thread correctly started")
-
-				else:
-
-					print("Broker thread already started")
-
-			else:
-
-				print("Invalid index")
+			self.startTrack(index)
 
 		except ValueError:
 
@@ -378,39 +401,72 @@ class App:
 
 			index = int(input("Enter the broker index: "))
 
-			if self.threads[index]:
-
-				if self.threads[index].active:
-
-					print("Broker thread correctly stopped")
-
-				else:
-
-					print("Broker thread already stopped")
-
-			else:
-
-				print("Invalid index")
+			self.stopTrack(index)
 
 		except ValueError:
 
 			print("Invalid data type provided")
 
-	def startTrack(self):
+	def startTrack(self, index = None):
 
-		for thread in self.threads:
+		if index != None:
 
-			thread.start()
-			print(f"{thread.broker.id} thread activated")
+			if self.threads[index]:
 
-	def stopTrack(self):
+				if not self.threads[index].active:
 
-		if self.threads:
+					self.threads[index].start()
+
+					print("Broker thread correctly started")
+
+				else:
+
+					print("Broker thread already started")
+
+			else:
+
+				print("Invalid index")
+
+		else:
 
 			for thread in self.threads:
 
-				if thread.active:
+				if not thread.active:
 
-					thread.stop()
-					thread.join()
-					print(f"{thread.broker.id} thread stopped")
+					thread.start()
+
+					print(f"{thread.broker.id} thread activated")
+
+	def stopTrack(self, index = None):
+
+		if self.threads:
+
+			if index != None:
+
+				if self.threads[index]:
+
+					if self.threads[index].active:
+
+						self.threads[index].stop()
+						self.threads[index].join()
+
+						print("Broker thread correctly stopped")
+
+					else:
+
+						print("Broker thread already stopped")
+
+				else:
+
+					print("Invalid index")
+
+			else:
+
+				for thread in self.threads:
+
+					if thread.active:
+
+						thread.stop()
+						thread.join()
+
+						print(f"{thread.broker.id} thread stopped")

@@ -11,9 +11,11 @@ from Stock import Stock
 
 class Broker:
 
-	def __init__(self, symbol, money = 0, stock = [], log = [], id = False):
+	def __init__(self, symbol, money, stock = {}, log = {}, lastTradeTimestamp = 0, id = False):
 
 		try:
+
+			symbol = symbol.upper()
 
 			url = f"https://www.alphavantage.co/query?function=OVERVIEW&symbol={symbol}&apikey={config.API_KEY}"
 			response = requests.get(url)
@@ -28,12 +30,13 @@ class Broker:
 
 					for key in list(obj["brokers"].keys()):
 
-						if key.startswith(symbol):
+						if key.split("_")[0] == symbol:
 
 							counter += 1
 
 				self.id = id or f"{symbol}_{str(counter)}"
 				self.symbol = symbol
+				self.lastTradeTimestamp = lastTradeTimestamp
 
 				self.money = float(money)
 				self.stock = stock
@@ -43,7 +46,6 @@ class Broker:
 				self.dailyData = None
 				self.generalData = None
 
-				self.obtainDailyData()
 				self.obtainGeneralData()
 
 			else:
@@ -133,7 +135,8 @@ class Broker:
 				obj["brokers"][self.id]["data"] = {
 
 					"id": self.id,
-					"symbol": self.symbol
+					"symbol": self.symbol,
+					"lastTradeTimestamp": self.lastTradeTimestamp
 
 				}
 
@@ -144,7 +147,7 @@ class Broker:
 
 				}
 
-				obj["brokers"][self.id]["log"] = []
+				obj["brokers"][self.id]["log"] = self.log
 
 				obj["lastUpdateTimestamp"] = time.time()
 
@@ -181,6 +184,8 @@ class Broker:
 
 	def trade(self):
 
+		self.lastTradeTimestamp = time.time()
+
 		self.obtainDailyData()
 
 		self.sell()
@@ -202,26 +207,16 @@ class Broker:
 
 				stock = Stock(self.id, self.symbol, actualPrice, time.time())
 
-				self.stock.append(stock.__dict__)
-				self.log.append(stock.__dict__)
-
-			with open("brokers.json") as file:
-
-				obj = json.load(file)
-
-				obj["brokers"][self.id]["wallet"]["money"] = self.money
-				obj["brokers"][self.id]["wallet"]["stock"] = self.stock
-				obj["brokers"][self.id]["log"] = self.log
-
-				with open("brokers.json", "w", encoding = "utf8") as file:
-
-					json.dump(obj, file, indent = "\t")
+				self.stock[stock.id] = stock
+				self.log[stock.id] = stock
 
 	def sell(self):
 
-		if len(self.stock) > 0:
+		if self.stock:
 
-			for stock in self.stock:
+			stockCopy = self.stock.copy()
+
+			for key, stock in stockCopy.items():
 
 				stockPrice = stock.buyPrice
 
@@ -236,17 +231,5 @@ class Broker:
 					stock.sellTimestamp = time.time()
 
 					self.money += actualPrice
-					del self.stock[stock]
-					self.log[stock] = stock.__dict__
-
-					with open("brokers.json") as file:
-
-						obj = json.load(file)
-
-						obj["brokers"][self.id]["wallet"]["money"] = self.money
-						obj["brokers"][self.id]["wallet"]["stock"] = self.stock
-						obj["brokers"][self.id]["log"] = self.log
-
-						with open("brokers.json", "w", encoding = "utf8") as file:
-
-							json.dump(obj, file, indent = "\t")
+					del self.stock[stock.id]
+					self.log[stock.id] = stock
